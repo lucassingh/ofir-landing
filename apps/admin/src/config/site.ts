@@ -1,3 +1,4 @@
+import { toOrigin } from "@ofir/content/preview";
 import type { ThemePreference } from "@/lib/preferences";
 
 /**
@@ -16,6 +17,10 @@ export const siteConfig = {
   version: "v1.0.0",
   /** La marca es de tema claro: el oscuro queda como opción en Ajustes. */
   defaultTheme: "light" as ThemePreference,
-  /** URL pública de la web: vista previa, "Ver en la web" y miniaturas de las fotos originales. */
-  siteUrl: (process.env.NEXT_PUBLIC_SITE_URL ?? "https://ofirsolucionesintegrales.com").replace(/\/$/, ""),
+  /**
+   * URL pública de la web (origen, sin barra final): vista previa, "Ver en la web"
+   * y miniaturas de las fotos originales. Si NEXT_PUBLIC_SITE_URL falta o no es
+   * una URL válida, se usa la de producción.
+   */
+  siteUrl: toOrigin(process.env.NEXT_PUBLIC_SITE_URL) ?? "https://ofirsolucionesintegrales.com",
 };

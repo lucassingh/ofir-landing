@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { buildPreviewContent, type SiteContent } from "@ofir/content";
-import { isPreviewContentMessage, type PreviewReadyMessage } from "@ofir/content/preview";
+import { isPreviewContentMessage, toOrigin, type PreviewReadyMessage } from "@ofir/content/preview";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { LandingSections } from "@/components/sections/LandingSections";
 import { PreviewModeContext } from "./PreviewMode";
 
-/** Orígenes que pueden mandar contenido: el panel en producción y, en desarrollo, el panel local. */
+/**
+ * Orígenes que pueden mandar contenido: el panel en producción y, en desarrollo,
+ * el panel local. toOrigin tolera la variable sin https:// o con barra final.
+ */
 const ALLOWED_ORIGINS = [
-  process.env.NEXT_PUBLIC_ADMIN_URL,
-  process.env.NODE_ENV === "development" ? "http://localhost:3001" : undefined,
-]
-  .filter((url): url is string => Boolean(url))
-  .map((url) => new URL(url).origin);
+  toOrigin(process.env.NEXT_PUBLIC_ADMIN_URL),
+  process.env.NODE_ENV === "development" ? "http://localhost:3001" : null,
+].filter((origin): origin is string => origin !== null);
 
 /** Altura de la navbar fija + aire: la sección enfocada queda justo debajo. */
 const NAV_OFFSET = 84;

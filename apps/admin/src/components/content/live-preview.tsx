@@ -15,7 +15,8 @@ const DEVICES = {
 } as const;
 type Device = keyof typeof DEVICES;
 
-const SITE_ORIGIN = new URL(siteConfig.siteUrl).origin;
+// siteUrl ya es un origen válido (ver config/site.ts)
+const SITE_ORIGIN = siteConfig.siteUrl;
 const PREVIEW_SRC = `${siteConfig.siteUrl}${PREVIEW_PATH}`;
 const READY_TIMEOUT_MS = 15_000;
 

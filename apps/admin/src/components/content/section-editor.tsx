@@ -117,7 +117,8 @@ export function SectionEditor({ sectionKey, initialValues, siteContent, meta: in
   // ⌘S / Ctrl+S guarda.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+      // el autocompletar de Chrome dispara keydown sin `key`
+      if (event.key?.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey) || event.altKey) return;
       event.preventDefault();
       if (isDirty) save();
     };

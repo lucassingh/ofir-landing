@@ -10,6 +10,22 @@
 
 export const PREVIEW_PATH = "/preview";
 
+/**
+ * Origen ("https://dominio.com") a partir de una URL cargada en una variable de
+ * entorno. Tolera que falte https://, que sobre la barra final o que tenga
+ * comillas. Si no sirve devuelve null: la app usa su valor por defecto en vez de
+ * romperse al cargar.
+ */
+export function toOrigin(value: string | null | undefined): string | null {
+  const raw = value?.trim().replace(/^["']+|["']+$/g, "").trim();
+  if (!raw) return null;
+  try {
+    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).origin;
+  } catch {
+    return null;
+  }
+}
+
 export type PreviewReadyMessage = { source: "ofir-preview"; type: "ready" };
 
 export type PreviewContentMessage = {

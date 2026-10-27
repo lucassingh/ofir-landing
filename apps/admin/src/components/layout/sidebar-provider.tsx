@@ -50,7 +50,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   // Atajo de teclado: ⌘B / Ctrl+B.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "b") return;
+      // el autocompletar de Chrome dispara keydown sin `key`
+      if (event.key?.toLowerCase() !== "b") return;
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
       if (event.target instanceof HTMLElement && event.target.isContentEditable) return;
       event.preventDefault();
