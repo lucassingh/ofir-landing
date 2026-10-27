@@ -22,16 +22,15 @@ npm test             # tests del panel (incluye el registro de secciones y el al
 No hay Neon ni ninguna base: todo vive en **un Blob store de Vercel**, compartido por las dos apps.
 
 ```
-panel ──guarda──▶ Vercel Blob: cms/content.json  (textos)
-  │                            cms/images/*      (fotos subidas)
-  │                            cms/history/*     (copia de cada guardado, quedan 30)
-  └──POST /api/revalidate──▶ web ──lee content.json──▶ página estática regenerada
+panel ──guarda──▶ Vercel Blob: cms/content/<fecha>.json  (una versión por guardado; quedan 30)
+  │                            cms/images/*              (fotos subidas)
+  └──POST /api/revalidate──▶ web ──lee la última versión──▶ página estática regenerada
 ```
 
-- **Textos**: un solo JSON. Solo están las secciones que se editaron; el resto usa los textos originales que están en el código (`packages/content/src/sections.ts`). Si el JSON falta o algo no valida, la web muestra los originales: nunca se rompe por contenido.
+- **Textos**: cada guardado escribe un JSON nuevo (nunca se sobrescribe, así el CDN del store público no puede servir una copia vieja) y la última versión se busca con `list()`, que va directo a la API de Blob. Las versiones anteriores son el historial. Solo están las secciones que se editaron; el resto usa los textos originales que están en el código (`packages/content/src/sections.ts`). Si el JSON falta o algo no valida, la web muestra los originales: nunca se rompe por contenido.
 - **Fotos**: el navegador las achica (2400 px, WebP) y las sube directo a Blob; en el JSON queda la URL.
 - **Publicar**: al guardar, el panel avisa a la web (`/api/revalidate` con `REVALIDATE_SECRET`) y la próxima visita ya ve el cambio. La web sigue siendo estática; igual se refresca sola una vez por día por si un aviso no llega.
-- **Concurrencia**: se escribe con `ifMatch` (ETag): si dos personas guardan a la vez, la segunda se aplica sobre la versión de la primera, no la pisa.
+- **Concurrencia**: cada guardado se aplica sobre la última versión, y si justo otra persona guardó en el medio, se vuelve a aplicar sobre la suya: no se pisan.
 - **Login**: las cuentas están en `apps/admin/src/config/users.ts` (las dos son superadmin). La contraseña es una sola, guardada como hash en `ADMIN_PASSWORD_HASH`. La sesión es una cookie firmada con `AUTH_SECRET`. Sin registro ni validación de email.
 - **Vista previa**: el panel muestra la web real (`/preview`) en un iframe y le manda por `postMessage` lo que se está escribiendo. Solo acepta mensajes del origen del panel (`NEXT_PUBLIC_ADMIN_URL`).
 

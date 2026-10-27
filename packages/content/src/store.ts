@@ -1,18 +1,21 @@
-import { BlobPreconditionFailedError, del, get, list, put } from "@vercel/blob";
+import { del, list, put } from "@vercel/blob";
 import type { SectionKey } from "./types";
 
 /**
- * Almacenamiento del contenido: un solo JSON en Vercel Blob (sin base de datos).
+ * Almacenamiento del contenido: archivos JSON en Vercel Blob (sin base de datos).
  *
- *   cms/content.json     lo publicado. Solo están las secciones que se editaron;
- *                        el resto usa los defaults del código.
- *   cms/history/*.json   copia de cada guardado (quedan las últimas 30), por si
- *                        hay que recuperar algo a mano.
- *   cms/images/*         fotos subidas desde el panel (las sube el navegador).
+ *   cms/content/<fecha>-<azar>.json   una versión por guardado. La más nueva es la
+ *                                     publicada; quedan las últimas 30 como historial.
+ *   cms/images/*                      fotos subidas desde el panel (las sube el navegador).
  *
- * Se lee con `useCache: false` (directo del origen, nunca una copia vieja del CDN)
- * y se escribe con `ifMatch`: si otra persona guardó en el medio, se vuelve a
- * leer y se aplica el cambio sobre su versión.
+ * Cada versión es un archivo nuevo con URL única y nunca se sobrescribe: el CDN
+ * del store público no puede devolver una copia vieja. Cuál es la última se
+ * pregunta con list(), que va a la API de Blob y no al CDN. (Un archivo fijo
+ * sobrescrito puede tardar hasta 60 s en verse en un store público:
+ * `useCache: false` solo saltea el CDN en stores privados.)
+ *
+ * En cada versión solo están las secciones que se editaron; el resto usa los
+ * defaults del código.
  */
 
 export interface SectionRecord {
@@ -28,9 +31,10 @@ export interface ContentDocument {
   sections: Partial<Record<SectionKey, SectionRecord>>;
 }
 
-const CONTENT_PATH = "cms/content.json";
-const HISTORY_PREFIX = "cms/history/";
-const KEEP_HISTORY = 30;
+type Version = { url: string; pathname: string; uploadedAt: Date };
+
+const VERSIONS_PREFIX = "cms/content/";
+const KEEP_VERSIONS = 30;
 const MAX_ATTEMPTS = 3;
 
 export const EMPTY_DOCUMENT: ContentDocument = { version: 1, savedAt: null, sections: {} };
@@ -56,10 +60,17 @@ function parseDocument(raw: unknown): ContentDocument {
   };
 }
 
-async function readWithEtag(): Promise<{ doc: ContentDocument; etag: string | null }> {
-  const result = await get(CONTENT_PATH, { access: "public", useCache: false });
-  if (!result || result.statusCode !== 200) return { doc: EMPTY_DOCUMENT, etag: null };
-  return { doc: parseDocument(await new Response(result.stream).json()), etag: result.blob.etag };
+/** Versiones de la más nueva a la más vieja (el nombre empieza con la fecha en ms). */
+async function listVersions(): Promise<Version[]> {
+  const { blobs } = await list({ prefix: VERSIONS_PREFIX, limit: 1000 });
+  return blobs.sort((a, b) => b.pathname.localeCompare(a.pathname) || b.uploadedAt.getTime() - a.uploadedAt.getTime());
+}
+
+async function fetchVersion(version: Version | undefined): Promise<ContentDocument> {
+  if (!version) return EMPTY_DOCUMENT;
+  const res = await fetch(version.url);
+  if (!res.ok) throw new Error(`No se pudo leer el contenido (${res.status})`);
+  return parseDocument(await res.json());
 }
 
 /**
@@ -69,41 +80,58 @@ async function readWithEtag(): Promise<{ doc: ContentDocument; etag: string | nu
  */
 export async function readContentDocument(): Promise<ContentDocument> {
   if (!isStoreConfigured()) return EMPTY_DOCUMENT;
-  return (await readWithEtag()).doc;
+  return fetchVersion((await listVersions())[0]);
 }
 
-async function backup(doc: ContentDocument) {
-  await put(`${HISTORY_PREFIX}${doc.savedAt?.replace(/[:.]/g, "-")}.json`, JSON.stringify(doc), {
-    access: "public",
-    contentType: "application/json",
-    addRandomSuffix: true,
-  });
-  const { blobs } = await list({ prefix: HISTORY_PREFIX });
-  const old = blobs.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime()).slice(KEEP_HISTORY);
-  if (old.length > 0) await del(old.map((b) => b.url));
+// Nombres siempre crecientes aunque se guarde dos veces en el mismo milisegundo.
+let lastStamp = 0;
+function nextStamp() {
+  lastStamp = Math.max(Date.now(), lastStamp + 1);
+  return String(lastStamp).padStart(15, "0");
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Espera a que list() ya muestre la versión nueva: recién ahí se avisa a la web. */
+async function listIncluding(url: string): Promise<Version[]> {
+  let versions = await listVersions();
+  for (let i = 0; i < 5 && !versions.some((v) => v.url === url); i++) {
+    await sleep(400);
+    versions = await listVersions();
+  }
+  return versions;
+}
+
+/**
+ * Aplica un cambio sobre la última versión y guarda una nueva. Si otra persona
+ * guardó en el medio, vuelve a aplicar el cambio sobre la versión de ella, así
+ * la última incluye los dos cambios.
+ */
 async function update(change: (doc: ContentDocument, now: string) => ContentDocument): Promise<ContentDocument> {
   if (!isStoreConfigured()) throw new StoreNotConfiguredError();
 
+  const ours = new Set<string>(); // versiones de intentos anteriores de este mismo guardado
   for (let attempt = 1; ; attempt++) {
-    const { doc, etag } = await readWithEtag();
+    const base = (await listVersions()).find((v) => !ours.has(v.url));
     const now = new Date().toISOString();
-    const next = { ...change(doc, now), savedAt: now };
-    try {
-      await put(CONTENT_PATH, JSON.stringify(next), {
-        access: "public",
-        contentType: "application/json",
-        addRandomSuffix: false,
-        cacheControlMaxAge: 60,
-        ...(etag ? { ifMatch: etag } : { allowOverwrite: true }),
-      });
-    } catch (error) {
-      if (error instanceof BlobPreconditionFailedError && attempt < MAX_ATTEMPTS) continue;
-      throw error;
-    }
-    // La copia no bloquea el guardado: si falla, lo publicado ya está bien.
-    await backup(next).catch((error) => console.warn("[cms] no se pudo guardar la copia de seguridad", error));
+    const next = { ...change(await fetchVersion(base), now), savedAt: now };
+
+    const created = await put(`${VERSIONS_PREFIX}${nextStamp()}.json`, JSON.stringify(next), {
+      access: "public",
+      contentType: "application/json",
+      addRandomSuffix: true,
+      // nunca cambia: puede quedar en el CDN para siempre
+      cacheControlMaxAge: 60 * 60 * 24 * 365,
+    });
+    ours.add(created.url);
+
+    const versions = await listIncluding(created.url);
+    const concurrent = versions.some((v) => !ours.has(v.url) && (!base || v.pathname > base.pathname));
+    if (concurrent && attempt < MAX_ATTEMPTS) continue;
+
+    // Historial: quedan las últimas 30. Si falla, lo publicado ya está bien.
+    const old = versions.slice(KEEP_VERSIONS);
+    if (old.length > 0) await del(old.map((v) => v.url)).catch((error) => console.warn("[cms] no se pudo podar el historial", error));
     return next;
   }
 }
