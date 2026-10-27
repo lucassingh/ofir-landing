@@ -1,0 +1,146 @@
+@import "tailwindcss";
+/* Fuente única de colores: branding/tokens/ofir-tokens.css (copiado por `npm run sync:brand`) */
+@import "../brand/ofir-tokens.css";
+
+/* Las fuentes las carga next/font/local en layout.tsx y exponen estas variables */
+:root {
+  --display: var(--font-archivo), "Archivo", system-ui, sans-serif;
+  --body: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
+  --mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+  /* superficie estilo "apple": gris muy claro + cards blancas */
+  --page: #f2f1ee;
+  --card: #ffffff;
+  --radius-xl: 28px;
+  --radius-2xl: 36px;
+  --shadow-card: 0 1px 0 rgba(22, 50, 79, 0.04), 0 24px 48px -28px rgba(22, 50, 79, 0.22);
+}
+
+@theme inline {
+  --color-azul: var(--azul);
+  --color-azul-2: var(--azul-2);
+  --color-azul-d: var(--azul-d);
+  --color-azul-tint: var(--azul-tint);
+  --color-oro: var(--oro);
+  --color-cal: var(--cal);
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-grafito: var(--grafito);
+  --color-ink-soft: var(--ink-soft);
+  --color-gris: var(--gris);
+  --color-on-azul: var(--on-azul);
+  --color-on-azul-soft: var(--on-azul-soft);
+  --font-display: var(--display);
+  --font-sans: var(--body);
+  --font-mono: var(--mono);
+  --radius-card: var(--radius-xl);
+  --radius-hero: var(--radius-2xl);
+  --shadow-card: var(--shadow-card);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  /* Anclas del menú (navbar = 12 px + 56 px = 68 px).
+     - Secciones de texto (servicios, obras, preguntas): el título queda justo debajo de la navbar;
+       se compensa el padding superior de la sección.
+     - Secciones-card (proceso, contacto): el borde de la card queda 16 px (mobile) / 28 px (desktop)
+       debajo de la navbar, con aire arriba como en el resto de las cards. */
+  section[id] { scroll-margin-top: 16px; }
+  #proceso { scroll-margin-top: 84px; }
+  #contacto { scroll-margin-top: 4px; }
+  @media (min-width: 1024px) {
+    section[id] { scroll-margin-top: -4px; }
+    #proceso { scroll-margin-top: 96px; }
+    #contacto { scroll-margin-top: -16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+  body {
+    background: var(--page);
+    color: var(--grafito);
+    font-family: var(--body);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--azul); color: var(--cal); }
+  :focus-visible { outline: 2px solid var(--azul-2); outline-offset: 3px; border-radius: 6px; }
+}
+
+/* Archivo Expanded (ancho 118–125 %) para títulos, como en el manual */
+@utility stretch-expanded {
+  font-stretch: 118%;
+  font-variation-settings: "wdth" 118;
+}
+@utility stretch-wide {
+  font-stretch: 125%;
+  font-variation-settings: "wdth" 125;
+}
+/* grilla de plano (recurso del manual) en claro y en negativo */
+@utility bg-grilla {
+  background-image: var(--grilla);
+}
+@utility bg-plano {
+  background-image: var(--plano-az);
+}
+
+/* FAQ: apertura animada de <details> (sin JS).
+   Chrome/Edge animan el alto (interpolate-size); Safari y Firefox abren igual, con el fundido de la respuesta. */
+:root { interpolate-size: allow-keywords; }
+.faq-item::details-content {
+  block-size: 0;
+  overflow: clip;
+  transition: block-size 0.55s cubic-bezier(0.4, 0, 0.2, 1), content-visibility 0.55s allow-discrete;
+}
+.faq-item[open]::details-content { block-size: auto; }
+.faq-item[open] .faq-answer { animation: faq-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes faq-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .faq-item::details-content { transition: none; }
+  .faq-item[open] .faq-answer { animation: none; }
+}
+
+/* CTA: degradé animado. Solo transform (compuesto en GPU), sin filter: blur; se pausa fuera de pantalla. */
+.cta-glow { contain: strict; }
+.cta-blob {
+  position: absolute;
+  border-radius: 9999px;
+  will-change: transform;
+}
+.cta-blob-1 {
+  width: 70%; aspect-ratio: 1; left: -15%; top: -45%;
+  background: radial-gradient(closest-side, rgba(15, 36, 64, 0.9), rgba(15, 36, 64, 0.45) 45%, rgba(15, 36, 64, 0));
+  animation: cta-drift-1 9s ease-in-out infinite alternate;
+}
+.cta-blob-2 {
+  width: 65%; aspect-ratio: 1; right: -20%; bottom: -55%;
+  background: radial-gradient(closest-side, rgba(22, 50, 79, 0.95), rgba(22, 50, 79, 0.45) 45%, rgba(22, 50, 79, 0));
+  animation: cta-drift-2 11s ease-in-out infinite alternate;
+}
+.cta-blob-3 {
+  width: 45%; aspect-ratio: 1; left: 30%; top: 10%;
+  background: radial-gradient(closest-side, rgba(15, 36, 64, 0.7), rgba(15, 36, 64, 0));
+  animation: cta-drift-3 13s ease-in-out infinite alternate;
+}
+/* va después del shorthand "animation" para que no lo pise */
+.cta-glow .cta-blob { animation-play-state: paused; }
+.cta-glow[data-on="true"] .cta-blob { animation-play-state: running; }
+/* grano: textura estática de 160 px en mosaico (no se anima) */
+.cta-grain {
+  position: absolute; inset: 0;
+  background: url("/texturas/grano.png") repeat;
+  opacity: 0.55;
+}
+@keyframes cta-drift-1 { to { transform: translate(70%, 55%) scale(1.15); } }
+@keyframes cta-drift-2 { to { transform: translate(-75%, -45%) scale(1.2); } }
+@keyframes cta-drift-3 { 50% { transform: translate(-60%, 35%) scale(0.9); } to { transform: translate(50%, -30%) scale(1.1); } }
+@media (prefers-reduced-motion: reduce) {
+  .cta-blob { animation: none; }
+}
