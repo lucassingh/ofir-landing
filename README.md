@@ -1,88 +1,75 @@
-# OFIR · landing
+# OFIR · web + panel
 
-Landing de **ofirsolucionesintegrales.com**. Next.js 16 (App Router, Cache Components) · TypeScript · Tailwind CSS v4 · React Bits (motion + GSAP) · Resend.
+Monorepo de **ofirsolucionesintegrales.com** y su panel de contenido.
 
-La documentación comercial (objetivo de cada sección, árbol de información, copy, criterios de diseño) está en [`../docs/landing-ofir.md`](../docs/landing-ofir.md).
-
-## Arrancar
+| Carpeta | Qué es | Puerto local |
+|---|---|---|
+| `apps/web` | La landing (Next 16, Cache Components). | 3000 |
+| `apps/admin` | El panel: login, inicio y un editor por sección con vista previa en vivo. | 3001 |
+| `packages/content` | El CMS: secciones, campos, textos originales, validación y almacenamiento. Lo usan las dos apps. | — |
 
 ```bash
 npm install
-cp .env.example .env.local     # completar las claves de Resend
-npm run dev                    # corre sync:brand antes de levantar
+npm run dev          # las dos apps (turbo)
+npm run dev:web      # solo la web
+npm run dev:admin    # solo el panel
+npm run build        # build de las dos
+npm test             # tests del panel (incluye el registro de secciones y el almacenamiento)
 ```
 
-Sin claves de Resend, en desarrollo el formulario funciona igual: el pedido se imprime en la consola del servidor.
+## Cómo funciona (sin base de datos)
 
-## Marca y fotos: una sola fuente
-
-Nada de la marca se edita en este proyecto. `npm run sync:brand` copia desde el workspace:
-
-| Desde | Hacia |
-|---|---|
-| `branding/tokens/ofir-tokens.css` | `src/brand/ofir-tokens.css` (colores → `@theme` de Tailwind) |
-| `branding/tipografía/web/*.woff2` | `src/brand/fonts/` (next/font/local) |
-| `branding/logo/svg/` | `public/brand/` y `src/app/icon.svg` |
-| `ofir-web/assets-proyectos/<obra>/` | `public/proyectos/<obra>/` (solo obras con `publicable: true` o usadas en el código) + `src/content/fotos.generated.json` |
-
-Los archivos copiados se versionan para que el deploy no dependa de las carpetas hermanas.
-Las obras sin permiso del cliente (`publicable: false`) **no se copian a `public/`**: no suben al deploy. Cuando llegue el permiso, se pasa a `true` y se corre `npm run sync:brand`.
-Si cambia un color o un logo: se cambia en `branding/`, se corre `npm run sync:brand` y se commitea.
-
-## Estructura
+No hay Neon ni ninguna base: todo vive en **un Blob store de Vercel**, compartido por las dos apps.
 
 ```
-src/
-  app/
-    layout.tsx            fuentes, metadata, navbar, footer, JSON-LD
-    page.tsx              orden de secciones
-    actions/presupuesto.ts  Server Action → Resend
-    sitemap.ts robots.ts icon.svg
-  content/                TODO el texto y los datos (site, services, projects, steps, faq)
-  components/
-    layout/               Navbar, Footer, FloatingDock (redes + volver arriba), JsonLd
-    sections/             una por sección (+ *Client.tsx para las islas interactivas)
-    forms/QuoteForm.tsx   formulario de presupuesto (useActionState)
-    ui/                   Logo, Eyebrow, SectionHeading, ObraFrame, Reveal, SlideIn, icons
-    reactbits/            componentes de React Bits sin modificar
-  lib/                    whatsapp, cn, quote-schema (zod), quote-email (HTML del mail)
-  brand/                  generado por sync:brand (no editar)
-scripts/sync-brand.mjs
+panel ──guarda──▶ Vercel Blob: cms/content.json  (textos)
+  │                            cms/images/*      (fotos subidas)
+  │                            cms/history/*     (copia de cada guardado, quedan 30)
+  └──POST /api/revalidate──▶ web ──lee content.json──▶ página estática regenerada
 ```
 
-## Deploy (Vercel)
+- **Textos**: un solo JSON. Solo están las secciones que se editaron; el resto usa los textos originales que están en el código (`packages/content/src/sections.ts`). Si el JSON falta o algo no valida, la web muestra los originales: nunca se rompe por contenido.
+- **Fotos**: el navegador las achica (2400 px, WebP) y las sube directo a Blob; en el JSON queda la URL.
+- **Publicar**: al guardar, el panel avisa a la web (`/api/revalidate` con `REVALIDATE_SECRET`) y la próxima visita ya ve el cambio. La web sigue siendo estática; igual se refresca sola una vez por día por si un aviso no llega.
+- **Concurrencia**: se escribe con `ifMatch` (ETag): si dos personas guardan a la vez, la segunda se aplica sobre la versión de la primera, no la pisa.
+- **Login**: las cuentas están en `apps/admin/src/config/users.ts` (las dos son superadmin). La contraseña es una sola, guardada como hash en `ADMIN_PASSWORD_HASH`. La sesión es una cookie firmada con `AUTH_SECRET`. Sin registro ni validación de email.
+- **Vista previa**: el panel muestra la web real (`/preview`) en un iframe y le manda por `postMessage` lo que se está escribiendo. Solo acepta mensajes del origen del panel (`NEXT_PUBLIC_ADMIN_URL`).
 
-El repo es esta carpeta (`ofir-landing`). Primer push:
+Un solo entorno: local y producción usan el **mismo** Blob store. Lo que se guarda desde el panel local se ve en la web publicada (con `REVALIDATE_URLS` el panel local avisa a las dos webs).
+
+## Deploy en Vercel
+
+Dos proyectos apuntando al mismo repo.
+
+**1. Web (el proyecto que ya existe)**
+- Settings → General → **Root Directory: `apps/web`**. Framework Next.js, sin cambiar comandos.
+- Variables: las de Resend que ya tiene + `REVALIDATE_SECRET` + `NEXT_PUBLIC_ADMIN_URL` (la URL del panel).
+
+**2. Panel (proyecto nuevo)**
+- Add New → Project → mismo repo → **Root Directory: `apps/admin`**.
+- Variables: `AUTH_SECRET`, `ADMIN_PASSWORD_HASH`, `REVALIDATE_SECRET` (el mismo de la web), `NEXT_PUBLIC_SITE_URL=https://ofirsolucionesintegrales.com`.
+- Dominio sugerido: `admin.ofirsolucionesintegrales.com`.
+
+**3. Almacenamiento**
+- Storage → Create → **Blob** → conectarlo a **los dos** proyectos (crea `BLOB_READ_WRITE_TOKEN` en cada uno).
+- Para desarrollo: copiar ese token a `apps/web/.env.local` y `apps/admin/.env.local`.
+
+Las variables `NEXT_PUBLIC_*` se fijan en el build: si se cambian, hay que volver a hacer deploy.
+
+Cada app tiene su `.env.example` con todo explicado.
+
+## Cambiar la contraseña
 
 ```bash
-git init -b main
-git add .
-git commit -m "OFIR landing"
-git remote add origin <url-del-repo>
-git push -u origin main
+npm run hash-password -- "NuevaContraseña"
 ```
 
-En Vercel: **Add New → Project →** importar el repo. Framework Next.js, sin cambiar comandos.
+Pegar el resultado en `ADMIN_PASSWORD_HASH` (Vercel, proyecto del panel) y volver a hacer deploy.
 
-Variables de entorno (Production y Preview):
+## Agregar un texto editable
 
-| Variable | Valor |
-|---|---|
-| `RESEND_API_KEY` | clave de Resend (solo permiso de envío) |
-| `CONTACT_TO` | `ofirsolucionesintegrales@gmail.com` (se pueden poner varios separados por coma) |
-| `CONTACT_FROM` | `OFIR Web <web@ofirsolucionesintegrales.com>` |
+1. Agregar el campo a su sección en `packages/content/src/sections.ts` (tipo, campo y default).
+2. Usarlo en el componente de la landing desde `content`.
+3. `npm test` verifica que los defaults pasen su propia validación.
 
-Dominio: en Vercel → Settings → Domains agregar `ofirsolucionesintegrales.com` y `www`, y cargar en el DNS los registros que indica Vercel.
-Los registros de Resend (DKIM, SPF/MX de envío) conviven con los de Vercel: no se pisan.
-
-### Cómo llega el formulario a Gmail
-
-No hace falta una casilla en el dominio. Resend **envía** desde `web@ofirsolucionesintegrales.com` (dominio verificado)
-**hacia** la cuenta de Gmail de `CONTACT_TO`. El campo *Responder a* es el email del cliente, así que en Gmail se toca
-**Responder** y le contesta directo. Si el cliente dejó su email, además recibe una confirmación automática.
-
-Primera vez: si el mail cae en Spam, marcarlo "No es spam" y agregar `web@ofirsolucionesintegrales.com` a contactos.
-
-## Pendientes
-
-Ver la lista completa en `../docs/landing-ofir.md` § 9.
+El formulario del panel, la validación y la vista previa salen solos de esa declaración.

@@ -1,0 +1,93 @@
+/* =============================================================================
+   THEME · OFIR (Manual de marca v1.0: "Acero, cal y un punto de oro").
+
+   1. MARCA        primary / secondary / accent (+ el color del texto encima).
+   2. SUPERFICIES  fondo del área de pantallas, cards, bordes y textos.
+   3. ESTADOS      éxito / advertencia / error.
+   4. FORMA        radio de bordes y sombras.
+   5. BRAND        colores fijos de la marca para superficies de marca
+                   (login, bloques azules). No cambian con el tema.
+
+   Cada bloque tiene su versión clara (:root) y oscura ([data-theme="dark"]).
+   Contraste verificado: cada `*-foreground` ≥ 4.5:1 sobre su color.
+     primary  Azul Acero / blanco ........ 13,1:1
+     secondary Azul Plano / blanco ........ 5,7:1
+     accent   Oro / Azul profundo ......... 4,8:1  (el oro nunca lleva texto blanco)
+   ========================================================================== */
+
+:root,
+[data-theme="light"] {
+  /* ---- 1. MARCA ---------------------------------------------------------- */
+  --primary: #16324f; /* Azul Acero */
+  --primary-foreground: #ffffff;
+
+  --secondary: #3a6a96; /* Azul Plano */
+  --secondary-foreground: #ffffff;
+
+  --accent: #b8862b; /* Oro Ofir: solo acentos chicos */
+  --accent-foreground: #0f2440;
+
+  /* ---- 2. SUPERFICIES ---------------------------------------------------- */
+  --canvas: #f2f1ee; /* fondo de página del manual (Cal un punto más cálida) */
+  --surface: #ffffff;
+  --popover: #ffffff;
+  --foreground: #22262a; /* Grafito */
+  --muted: #f5f3ef; /* Cal */
+  --muted-foreground: #5e6770; /* Grafito suave */
+  --border: #e6e1d8;
+  --border-strong: #d6d0c4;
+  --ring: #3a6a96;
+
+  /* ---- 3. ESTADOS -------------------------------------------------------- */
+  --success: #1f6b47;
+  --warning: #9a5b0b;
+  --danger: #b3261e;
+
+  /* ---- 4. FORMA ---------------------------------------------------------- */
+  --radius: 0.875rem;
+  /* Sombra larga y difusa en Azul Acero (manual: "cards que flotan"). */
+  --card-shadow: 0 1px 0 rgb(22 50 79 / 0.03), 0 18px 36px -30px rgb(22 50 79 / 0.35);
+  --popover-shadow:
+    0 16px 36px -10px rgb(22 50 79 / 0.22), 0 2px 6px -2px rgb(22 50 79 / 0.08);
+}
+
+[data-theme="dark"] {
+  /* ---- 1. MARCA ---------------------------------------------------------- */
+  --primary: #9dbdde;
+  --primary-foreground: #0f2440;
+
+  --secondary: #6e9bc6;
+  --secondary-foreground: #0b1622;
+
+  --accent: #d9a84e;
+  --accent-foreground: #1a1205;
+
+  /* ---- 2. SUPERFICIES ---------------------------------------------------- */
+  --canvas: #0a131d;
+  --surface: #0f1b28;
+  --popover: #142334;
+  --foreground: #e8edf2;
+  --muted: #16273a;
+  --muted-foreground: #9aa9b8;
+  --border: #1d2f42;
+  --border-strong: #2a4058;
+  --ring: #9dbdde;
+
+  /* ---- 3. ESTADOS -------------------------------------------------------- */
+  --success: #5fcb94;
+  --warning: #f0b44c;
+  --danger: #f28b82;
+
+  /* ---- 4. FORMA ---------------------------------------------------------- */
+  --card-shadow: 0 0 0 0 transparent;
+  --popover-shadow: 0 16px 40px -8px rgb(0 0 0 / 0.7);
+}
+
+/* ---- 5. BRAND (fijos, iguales en claro y oscuro) -------------------------- */
+:root {
+  --brand-azul: #16324f;
+  --brand-azul-2: #3a6a96;
+  --brand-azul-d: #0f2440;
+  --brand-oro: #b8862b;
+  --brand-cal: #f5f3ef;
+}
